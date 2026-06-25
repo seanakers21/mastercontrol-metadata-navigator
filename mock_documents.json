@@ -1,0 +1,293 @@
+[
+  {
+    "document_id": "VAL-701",
+    "title": "Computer System Validation Master Plan",
+    "revision": "Rev 2",
+    "status": "Effective",
+    "document_type": "Validation Plan",
+    "department": "CSV",
+    "owner": "Validation",
+    "effective_date": "2025-06-01",
+    "business_area": "Manufacturing",
+    "process_area": "Computerized Systems",
+    "ai_summary": "Defines the framework for assessing, validating, and maintaining computerized systems used in regulated GMP operations.",
+    "search_keywords": ["CSV", "computer system", "computerized system", "software validation", "GAMP 5", "21 CFR Part 11", "PLC", "HMI", "historian", "MES"],
+    "common_questions": [
+      "What do I do when installing a new computer system?",
+      "Does this software need validation?",
+      "What document covers PLC validation?",
+      "Does this require Part 11 review?"
+    ],
+    "use_when": [
+      "A new computerized system is introduced",
+      "A GMP software system is modified",
+      "Electronic records or electronic signatures are used",
+      "A PLC, HMI, MES, SCADA, or historian is implemented"
+    ],
+    "related_documents": ["FRM-701", "SOP-501", "SOP-115"],
+    "url": "https://mastercontrol.demo/infocard/VAL-701"
+  },
+  {
+    "document_id": "FRM-701",
+    "title": "Computer System Validation Assessment Form",
+    "revision": "Rev 1",
+    "status": "Effective",
+    "document_type": "Form",
+    "department": "CSV",
+    "owner": "Validation",
+    "effective_date": "2025-06-01",
+    "business_area": "Manufacturing",
+    "process_area": "Computerized Systems",
+    "ai_summary": "Assessment form used to determine validation impact, GxP applicability, and Part 11 requirements for computerized systems.",
+    "search_keywords": ["CSV assessment", "Part 11 assessment", "software assessment", "GxP impact", "validation form"],
+    "common_questions": [
+      "What form do I use for a new software system?",
+      "How do I assess Part 11 applicability?",
+      "What form determines if a system is GxP?"
+    ],
+    "use_when": [
+      "A new software system is proposed",
+      "A computerized system is changed",
+      "Part 11 or GxP impact must be assessed"
+    ],
+    "related_documents": ["VAL-701", "SOP-501"],
+    "url": "https://mastercontrol.demo/infocard/FRM-701"
+  },
+  {
+    "document_id": "WI-402",
+    "title": "Deviation Reporting and CAPA Work Instruction",
+    "revision": "Rev 5",
+    "status": "Effective",
+    "document_type": "Work Instruction",
+    "department": "Quality Assurance",
+    "owner": "QA Operations",
+    "effective_date": "2025-02-20",
+    "business_area": "Quality",
+    "process_area": "Deviation Management",
+    "ai_summary": "Provides routing guidance for documenting deviations, initiating investigations, escalating events, and linking issues to CAPA when required.",
+    "search_keywords": ["deviation", "CAPA", "equipment failure", "process excursion", "operator error", "root cause", "investigation", "mechanical failure"],
+    "common_questions": [
+      "What do I do if equipment fails during production?",
+      "How do I report a deviation?",
+      "Who do I notify for a process excursion?",
+      "What document covers manufacturing errors?"
+    ],
+    "use_when": [
+      "Equipment fails during GMP production",
+      "A process excursion occurs",
+      "An operator error is discovered",
+      "A deviation investigation may be required"
+    ],
+    "related_documents": ["FRM-402", "SOP-501", "SOP-805"],
+    "url": "https://mastercontrol.demo/infocard/WI-402"
+  },
+  {
+    "document_id": "FRM-402",
+    "title": "Deviation Initial Assessment Form",
+    "revision": "Rev 3",
+    "status": "Effective",
+    "document_type": "Form",
+    "department": "Quality Assurance",
+    "owner": "QA Operations",
+    "effective_date": "2025-02-20",
+    "business_area": "Quality",
+    "process_area": "Deviation Management",
+    "ai_summary": "Form used to capture the initial description, impact assessment, containment actions, and notification details for a deviation.",
+    "search_keywords": ["deviation form", "initial assessment", "event report", "containment", "impact assessment"],
+    "common_questions": [
+      "What form do I use to open a deviation?",
+      "How do I document an initial deviation assessment?",
+      "Where do I record containment actions?"
+    ],
+    "use_when": [
+      "A deviation is identified",
+      "An initial quality impact assessment is needed",
+      "Containment actions must be documented"
+    ],
+    "related_documents": ["WI-402", "SOP-501"],
+    "url": "https://mastercontrol.demo/infocard/FRM-402"
+  },
+  {
+    "document_id": "SOP-501",
+    "title": "Data Integrity and Good Documentation Practices",
+    "revision": "Rev 8",
+    "status": "Effective",
+    "document_type": "SOP",
+    "department": "Quality Systems",
+    "owner": "Quality Systems",
+    "effective_date": "2025-01-30",
+    "business_area": "Quality",
+    "process_area": "Documentation",
+    "ai_summary": "Defines documentation expectations for GMP records, including corrections, electronic signatures, contemporaneous recording, and ALCOA+ principles.",
+    "search_keywords": ["GDP", "data integrity", "ALCOA", "batch record correction", "documentation error", "electronic signature", "GMP records"],
+    "common_questions": [
+      "How do I correct a batch record?",
+      "What are GDP rules?",
+      "What does ALCOA mean?",
+      "How do I handle a documentation error?"
+    ],
+    "use_when": [
+      "A GMP record is completed",
+      "A documentation correction is needed",
+      "Electronic signatures are used",
+      "Data integrity requirements apply"
+    ],
+    "related_documents": ["FRM-402", "VAL-701"],
+    "url": "https://mastercontrol.demo/infocard/SOP-501"
+  },
+  {
+    "document_id": "SOP-201",
+    "title": "Cleanroom Gowning and Personnel Hygiene Requirements",
+    "revision": "Rev 6",
+    "status": "Effective",
+    "document_type": "SOP",
+    "department": "Manufacturing",
+    "owner": "Manufacturing Operations",
+    "effective_date": "2025-04-10",
+    "business_area": "Manufacturing",
+    "process_area": "Aseptic Operations",
+    "ai_summary": "Defines personnel hygiene and gowning requirements for entry into classified cleanroom areas.",
+    "search_keywords": ["cleanroom", "gowning", "aseptic", "PPE", "Grade A", "Grade B", "classified area", "personnel hygiene"],
+    "common_questions": [
+      "What do I wear in the cleanroom?",
+      "What document covers gowning?",
+      "How do I enter an aseptic area?"
+    ],
+    "use_when": [
+      "Personnel enter a cleanroom",
+      "Aseptic gowning is required",
+      "PPE requirements for classified areas are needed"
+    ],
+    "related_documents": ["SOP-205", "WI-210"],
+    "url": "https://mastercontrol.demo/infocard/SOP-201"
+  },
+  {
+    "document_id": "SOP-205",
+    "title": "Environmental Monitoring Program for Sterile Operations",
+    "revision": "Rev 3",
+    "status": "Effective",
+    "document_type": "SOP",
+    "department": "Quality Control",
+    "owner": "QC Microbiology",
+    "effective_date": "2025-05-12",
+    "business_area": "Quality Control",
+    "process_area": "Environmental Monitoring",
+    "ai_summary": "Defines cleanroom environmental monitoring requirements, including viable and non-viable sampling, alert limits, action limits, and response expectations.",
+    "search_keywords": ["environmental monitoring", "cleanroom monitoring", "viable particles", "non-viable particles", "alert limit", "action limit", "microbial monitoring"],
+    "common_questions": [
+      "What procedure covers environmental monitoring?",
+      "What do I do for an alert limit excursion?",
+      "Where are cleanroom monitoring requirements?"
+    ],
+    "use_when": [
+      "Environmental monitoring samples are collected",
+      "Cleanroom particle or microbial results are reviewed",
+      "Alert or action limits are exceeded"
+    ],
+    "related_documents": ["SOP-201", "WI-402"],
+    "url": "https://mastercontrol.demo/infocard/SOP-205"
+  },
+  {
+    "document_id": "SOP-115",
+    "title": "Process Validation Standard Operating Procedure",
+    "revision": "Rev 7",
+    "status": "Effective",
+    "document_type": "SOP",
+    "department": "MSAT",
+    "owner": "MSAT",
+    "effective_date": "2025-03-03",
+    "business_area": "Manufacturing Science",
+    "process_area": "Process Validation",
+    "ai_summary": "Defines requirements for process validation planning, PPQ execution, sampling strategy, acceptance criteria, and validation reporting.",
+    "search_keywords": ["process validation", "PPQ", "validation protocol", "acceptance criteria", "manufacturing validation", "commercial process"],
+    "common_questions": [
+      "How do I validate a process?",
+      "What document covers PPQ?",
+      "What is required for process validation?"
+    ],
+    "use_when": [
+      "A manufacturing process requires validation",
+      "A PPQ campaign is planned",
+      "Commercial validation documentation is required"
+    ],
+    "related_documents": ["VAL-701", "FRM-115"],
+    "url": "https://mastercontrol.demo/infocard/SOP-115"
+  },
+  {
+    "document_id": "FRM-115",
+    "title": "Process Validation Protocol Template",
+    "revision": "Rev 4",
+    "status": "Effective",
+    "document_type": "Form",
+    "department": "MSAT",
+    "owner": "MSAT",
+    "effective_date": "2025-03-03",
+    "business_area": "Manufacturing Science",
+    "process_area": "Process Validation",
+    "ai_summary": "Template used to define PPQ objectives, sampling plans, critical process parameters, critical quality attributes, and acceptance criteria.",
+    "search_keywords": ["PPQ template", "validation protocol", "process validation form", "CPP", "CQA", "acceptance criteria"],
+    "common_questions": [
+      "What template do I use for PPQ?",
+      "Where do I define validation acceptance criteria?",
+      "What form supports process validation?"
+    ],
+    "use_when": [
+      "A process validation protocol is drafted",
+      "PPQ sampling and acceptance criteria are documented"
+    ],
+    "related_documents": ["SOP-115"],
+    "url": "https://mastercontrol.demo/infocard/FRM-115"
+  },
+  {
+    "document_id": "WI-210",
+    "title": "Sanitization and Disinfection of Controlled Areas",
+    "revision": "Rev 4",
+    "status": "Effective",
+    "document_type": "Work Instruction",
+    "department": "Manufacturing",
+    "owner": "Manufacturing Operations",
+    "effective_date": "2025-04-01",
+    "business_area": "Manufacturing",
+    "process_area": "Controlled Areas",
+    "ai_summary": "Provides routing information for cleaning and disinfecting controlled manufacturing areas using approved agents and defined frequencies.",
+    "search_keywords": ["sanitization", "disinfection", "controlled area", "sporicidal", "cleaning", "cleanroom cleaning"],
+    "common_questions": [
+      "What document covers cleanroom cleaning?",
+      "How do I disinfect a controlled area?",
+      "What work instruction covers sporicidal cleaning?"
+    ],
+    "use_when": [
+      "Controlled areas require cleaning",
+      "Disinfection activities are performed",
+      "Spore-forming contamination control is needed"
+    ],
+    "related_documents": ["SOP-201", "SOP-205"],
+    "url": "https://mastercontrol.demo/infocard/WI-210"
+  },
+  {
+    "document_id": "SOP-805",
+    "title": "Product Recall Procedure and Crisis Management Plan",
+    "revision": "Rev 2",
+    "status": "Effective",
+    "document_type": "SOP",
+    "department": "Quality Assurance",
+    "owner": "Quality Systems",
+    "effective_date": "2025-02-01",
+    "business_area": "Quality",
+    "process_area": "Recall Management",
+    "ai_summary": "Defines routing for mock and actual product recalls, field corrections, quarantine of returned inventory, and health authority notification coordination.",
+    "search_keywords": ["recall", "field correction", "product withdrawal", "crisis management", "quarantine", "returned inventory"],
+    "common_questions": [
+      "What document covers a product recall?",
+      "How do I initiate a field correction?",
+      "What happens during a mock recall?"
+    ],
+    "use_when": [
+      "A recall or field correction may be required",
+      "Returned inventory must be quarantined",
+      "Recall coordination is needed"
+    ],
+    "related_documents": ["WI-402", "SOP-802"],
+    "url": "https://mastercontrol.demo/infocard/SOP-805"
+  }
+]
