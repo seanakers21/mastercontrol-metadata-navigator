@@ -1,52 +1,40 @@
 import os
-import json
-import hashlib
-from typing import List, Dict, Any, Tuple
+from collections import Counter
+from typing import Any, Dict, List, Tuple
 
 import streamlit as st
-from langchain_core.documents import Document
 from langchain_chroma import Chroma
+from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from sentence_transformers import CrossEncoder
 
+from data_service import dataset_hash, load_documents, load_events
+from search_service import (
+    apply_event_filters,
+    combine_document_results,
+    event_searchable_text,
+    lexical_score,
+)
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-APP_TITLE = "MasterControl Metadata Navigator"
-DATA_FILE = "mock_documents.json"
+APP_TITLE = "MasterControl Quality Knowledge Navigator"
 
 
-def load_documents() -> List[Dict[str, Any]]:
-    with open(DATA_FILE, "r", encoding="utf-8") as file:
-        return json.load(file)
-
-
-def dataset_hash(items: List[Dict[str, Any]]) -> str:
-    raw = json.dumps(items, sort_keys=True).encode("utf-8")
-    return hashlib.sha256(raw).hexdigest()
-
-
-def make_searchable_text(item: Dict[str, Any]) -> str:
-    return f"""
-Document ID: {item["document_id"]}
-Title: {item["title"]}
-Document Type: {item["document_type"]}
-Department: {item["department"]}
-Owner: {item["owner"]}
-Business Area: {item["business_area"]}
-Process Area: {item["process_area"]}
-AI Summary: {item["ai_summary"]}
-Search Keywords: {", ".join(item["search_keywords"])}
-Common Questions: {" | ".join(item["common_questions"])}
-Use When: {" | ".join(item["use_when"])}
-Related Documents: {", ".join(item["related_documents"])}
-""".strip()
+def make_document_text(item: Dict[str, Any]) -> str:
+    return "\n".join([
+        f"Document ID: {item['document_id']}", f"Title: {item['title']}",
+        f"Document Type: {item['document_type']}", f"Department: {item['department']}",
+        f"Business Area: {item['business_area']}", f"Process Area: {item['process_area']}",
+        f"Approved Metadata Summary: {item['ai_summary']}",
+        f"Search Keywords: {', '.join(item['search_keywords'])}",
+        f"Common Questions: {' | '.join(item['common_questions'])}",
+        f"Use When: {' | '.join(item['use_when'])}",
+    ])
 
 
 @st.cache_resource(show_spinner="Loading semantic search model...")
 def get_embedding_engine():
-    return HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
+    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 
 @st.cache_resource(show_spinner="Loading reranking model...")
@@ -54,339 +42,216 @@ def get_reranker():
     return CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 
 
-@st.cache_resource(show_spinner="Preparing metadata index...")
-def build_vector_db(data_hash: str):
-    items = load_documents()
-    effective_items = [item for item in items if item["status"] == "Effective"]
-
+@st.cache_resource(show_spinner="Preparing controlled-document index...")
+def build_document_index(data_hash: str):
+    del data_hash
     docs = []
+    for item in load_documents():
+        if item["status"] != "Effective":
+            continue
+        metadata = dict(item)
+        for key in ("search_keywords", "common_questions", "use_when", "related_documents"):
+            metadata[key] = " | ".join(metadata[key])
+        docs.append(Document(page_content=make_document_text(item), metadata=metadata))
+    return Chroma.from_documents(
+        docs,
+        get_embedding_engine(),
+        collection_name="controlled_documents",
+    )
 
-    for item in effective_items:
-        docs.append(
-            Document(
-                page_content=make_searchable_text(item),
-                metadata={
-                    "document_id": item["document_id"],
-                    "title": item["title"],
-                    "revision": item["revision"],
-                    "status": item["status"],
-                    "document_type": item["document_type"],
-                    "department": item["department"],
-                    "owner": item["owner"],
-                    "effective_date": item["effective_date"],
-                    "business_area": item["business_area"],
-                    "process_area": item["process_area"],
-                    "ai_summary": item["ai_summary"],
-                    "search_keywords": ", ".join(item["search_keywords"]),
-                    "common_questions": " | ".join(item["common_questions"]),
-                    "use_when": " | ".join(item["use_when"]),
-                    "related_documents": ", ".join(item["related_documents"]),
-                    "url": item["url"],
-                },
-            )
+
+@st.cache_resource(show_spinner="Preparing historical-event index...")
+def build_event_index(data_hash: str):
+    del data_hash
+    docs = [
+        Document(
+            page_content=event_searchable_text(item),
+            metadata={"record_id": item["record_id"]},
         )
+        for item in load_events()
+    ]
+    return Chroma.from_documents(
+        docs,
+        get_embedding_engine(),
+        collection_name="historical_events",
+    )
 
-    return Chroma.from_documents(docs, get_embedding_engine())
+
+def search_documents(query: str, vector_db: Chroma) -> List[Tuple[Document, float]]:
+    candidates = vector_db.similarity_search_with_score(query, k=8)
+    scores = get_reranker().predict([(query, doc.page_content) for doc, _ in candidates])
+    reranked = [(doc, distance, float(score)) for (doc, distance), score in zip(candidates, scores)]
+    return combine_document_results(query, reranked)[:3]
 
 
-def rerank_results(
+def search_events(
     query: str,
-    candidate_results: List[Tuple[Document, float]]
-) -> List[Tuple[Document, float, float]]:
-    reranker = get_reranker()
-    pairs = [(query, doc.page_content) for doc, _ in candidate_results]
-    scores = reranker.predict(pairs)
-
+    items: List[Dict[str, Any]],
+    vector_db: Chroma,
+    limit: int = 10,
+) -> List[Tuple[Dict[str, Any], float]]:
+    if not items:
+        return []
+    allowed = {item["record_id"]: item for item in items}
+    candidates = vector_db.similarity_search_with_score(query, k=min(20, len(load_events())))
+    candidates = [(doc, distance) for doc, distance in candidates if doc.metadata["record_id"] in allowed]
+    semantic_scores = {}
+    if candidates:
+        scores = get_reranker().predict([(query, doc.page_content) for doc, _ in candidates])
+        semantic_scores = {
+            doc.metadata["record_id"]: float(score)
+            for (doc, _), score in zip(candidates, scores)
+        }
     ranked = []
-
-    for (doc, distance), score in zip(candidate_results, scores):
-        ranked.append((doc, distance, float(score)))
-
-    ranked.sort(key=lambda item: item[2], reverse=True)
-    return ranked
-
-
-def get_related_documents(
-    selected_doc: Document,
-    all_items: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
-    related_ids = [
-        value.strip()
-        for value in selected_doc.metadata.get("related_documents", "").split(",")
-        if value.strip()
-    ]
-
-    return [
-        item for item in all_items
-        if item["document_id"] in related_ids
-    ]
+    for record_id, item in allowed.items():
+        lexical = lexical_score(query, event_searchable_text(item))
+        semantic = semantic_scores.get(record_id, -10.0)
+        ranked.append((item, semantic + lexical * 2.0))
+    return sorted(
+        ranked,
+        key=lambda row: (row[1], row[0]["event_date"]),
+        reverse=True,
+    )[:limit]
 
 
-def get_reason_terms(query: str, doc: Document) -> List[str]:
-    query_words = {
-        word.strip().lower()
-        for word in query.replace("?", " ").replace(",", " ").replace(".", " ").split()
-        if len(word.strip()) > 3
-    }
-
-    searchable_text = " ".join([
-        doc.metadata.get("title", ""),
-        doc.metadata.get("ai_summary", ""),
-        doc.metadata.get("search_keywords", ""),
-        doc.metadata.get("common_questions", ""),
-        doc.metadata.get("use_when", "")
-    ]).lower()
-
-    matches = []
-
-    for word in query_words:
-        if word in searchable_text:
-            matches.append(word.title())
-
-    if matches:
-        return sorted(matches)[:6]
-
-    fallback = doc.metadata.get("search_keywords", "")
-    return [term.strip() for term in fallback.split(",")[:6] if term.strip()]
+def multiselect_filter(label: str, key: str, events: List[Dict[str, Any]]) -> List[str]:
+    options = sorted({str(item[key]) for item in events if item.get(key)})
+    return st.multiselect(label, options, placeholder="All")
 
 
-def render_matched_topics(topics: List[str]):
-    if not topics:
-        return
-
-    st.markdown("**Matched Topics**")
-
-    chip_html = "<div class='chip-container'>"
-    for topic in topics:
-        chip_html += f"<span class='topic-chip'>{topic}</span>"
-    chip_html += "</div>"
-
-    st.markdown(chip_html, unsafe_allow_html=True)
-
-
-def render_recommended_document(doc: Document, query: str):
-    meta = doc.metadata
-    reason_terms = get_reason_terms(query, doc)
-
-    with st.container(border=True):
-        left, right = st.columns([3, 1])
-
-        with left:
-            st.markdown("### Recommended Controlled Document")
-            st.markdown(f"## {meta['document_id']}")
-            st.markdown(f"### {meta['title']}")
-
-        with right:
-            st.markdown("**InfoCard Status**")
-            st.markdown(f"**{meta['status']}**")
-
-        st.divider()
-
+def render_filters(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    years = [int(item["event_date"][:4]) for item in events]
+    with st.expander("Narrow historical-event search", expanded=False):
         c1, c2, c3, c4 = st.columns(4)
-
         with c1:
-            st.markdown("**Type**")
-            st.write(meta["document_type"])
-
+            sites = multiselect_filter("Site", "site", events)
         with c2:
-            st.markdown("**Revision**")
-            st.write(meta["revision"])
-
+            types = multiselect_filter("Record type", "event_type", events)
         with c3:
-            st.markdown("**Department**")
-            st.write(meta["department"])
-
+            departments = multiselect_filter("Department", "department", events)
         with c4:
-            st.markdown("**Effective Date**")
-            st.write(meta["effective_date"])
-
-        st.markdown("**Approved Metadata Summary**")
-        st.write(meta["ai_summary"])
-
-        render_matched_topics(reason_terms)
-
-        st.link_button("Open in MasterControl", meta["url"])
+            statuses = multiselect_filter("Status", "status", events)
+        year_range = st.slider("Event year", min(years), max(years), (min(years), max(years)))
+    return {"site": sites, "event_type": types, "department": departments,
+            "status": statuses, "year_range": year_range}
 
 
-def render_supporting_documents(related_docs: List[Dict[str, Any]]):
-    if not related_docs:
-        return
-
-    st.markdown("### Supporting Documents")
-
-    for item in related_docs:
-        with st.container(border=True):
-            c1, c2, c3 = st.columns([1, 3, 1])
-
-            with c1:
-                st.markdown(f"**{item['document_id']}**")
-                st.caption(item["document_type"])
-
-            with c2:
-                st.markdown(f"**{item['title']}**")
-                st.write(item["ai_summary"])
-
-            with c3:
-                st.link_button("Open", item["url"])
+def render_event_summary(results: List[Tuple[Dict[str, Any], float]]) -> None:
+    st.subheader("Potentially Related Historical Records")
+    st.caption("Potential matches—not a recurrence determination. Verify each authoritative source record before use.")
+    closed = sum(item["status"] == "Closed" for item, _ in results)
+    categories = Counter(item["root_cause_category"] for item, _ in results)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Potential matches", len(results))
+    c2.metric("Closed records", closed)
+    c3.metric("Most common recorded category", categories.most_common(1)[0][0] if categories else "—")
 
 
-def render_other_relevant_documents(results: List[Tuple[Document, float, float]]):
-    if len(results) <= 1:
-        return
+def render_event(item: Dict[str, Any], rank: int) -> None:
+    status = item["status"]
+    heading = f"{item['event_date']} · {item['record_id']} · {item['title']}"
+    with st.expander(heading, expanded=rank == 0):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(f"**Type**  \n{item['event_type']}")
+        c2.markdown(f"**Status**  \n{status}")
+        c3.markdown(f"**Site / Area**  \n{item['site']} / {item['area']}")
+        c4.markdown(f"**Equipment**  \n{item['equipment_id']} · {item['equipment_type']}")
+        st.markdown("**Recorded problem statement**")
+        st.write(item["problem_statement"])
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Recorded failure mode**")
+            st.write(item["failure_mode"])
+            st.markdown("**Confirmed root cause in source metadata**")
+            st.write(f"{item['root_cause_category']}: {item['confirmed_root_cause']}")
+        with right:
+            st.markdown("**Corrective / preventive actions**")
+            st.write(item["corrective_action"])
+            st.write(item["preventive_action"])
+            st.markdown("**Recorded recurrence classification**")
+            st.write(item["recurrence_classification"])
+        st.caption("Related records: " + ", ".join(item["related_records"]))
+        st.link_button(f"Open authoritative record {item['record_id']}", item["url"])
 
-    st.markdown("### Other Relevant Documents")
 
-    for doc, _, _ in results[1:]:
-        meta = doc.metadata
-
-        with st.container(border=True):
-            c1, c2, c3 = st.columns([1, 4, 1])
-
-            with c1:
-                st.markdown(f"**{meta['document_id']}**")
-                st.caption(meta["document_type"])
-
-            with c2:
-                st.markdown(f"**{meta['title']}**")
-                st.write(meta["ai_summary"])
-
-            with c3:
-                st.link_button("Open", meta["url"])
+def render_document(doc: Document, primary: bool = False) -> None:
+    meta = doc.metadata
+    with st.container(border=True):
+        if primary:
+            st.markdown("**Top controlled-document match**")
+        c1, c2 = st.columns([4, 1])
+        with c1:
+            st.markdown(f"### {meta['document_id']} · {meta['title']}")
+            st.write(meta["ai_summary"])
+        with c2:
+            st.markdown(f"**{meta['status']}**")
+            st.caption(f"{meta['document_type']} · {meta['revision']}")
+        st.link_button(f"Open {meta['document_id']} in MasterControl", meta["url"])
 
 
-def main():
-    st.set_page_config(
-        page_title=APP_TITLE,
-        layout="wide",
-    )
+def render_page_style() -> None:
+    st.markdown("""
+    <style>
+      .main .block-container {max-width: 1200px; padding-top: 2rem; padding-bottom: 3rem;}
+      div[data-testid="stButton"] > button {width: 100%; font-weight: 650;}
+      div[data-testid="stTextArea"] textarea {font-size: 1.05rem;}
+    </style>
+    """, unsafe_allow_html=True)
 
-    st.markdown(
-        """
-        <style>
-            .main .block-container {
-                max-width: 1150px;
-                padding-top: 3rem;
-                padding-bottom: 3rem;
-            }
 
-            div[data-testid="stSidebar"] {
-                display: none;
-            }
+def main() -> None:
+    st.set_page_config(page_title=APP_TITLE, layout="wide")
+    render_page_style()
+    documents = load_documents()
+    events = load_events()
+    vector_db = build_document_index(dataset_hash(documents))
+    event_vector_db = build_event_index(dataset_hash(events))
 
-            div[data-testid="stButton"] > button {
-                width: 100%;
-                height: 44px;
-                font-weight: 600;
-            }
+    st.title(APP_TITLE)
+    st.write("Search prior quality events and effective controlled-document metadata using ordinary engineering language.")
+    st.info("**Decision-support boundary:** Results support discovery and reflection only. MasterControl remains the validated system of record, and authorized personnel must verify records and make all quality decisions.")
 
-            div[data-testid="stTextArea"] textarea {
-                font-size: 1.05rem;
-            }
+    with st.form("quality-search"):
+        query = st.text_area(
+            "What are you trying to understand?",
+            placeholder="Have we had issues with centrifugal pumps running dry and breaking in the past?",
+            height=110,
+        )
+        filters = render_filters(events)
+        submitted = st.form_submit_button("Search quality knowledge", use_container_width=True)
 
-            .chip-container {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.5rem;
-                margin-top: 0.5rem;
-                margin-bottom: 1rem;
-            }
-
-            .topic-chip {
-                border: 1px solid rgba(250, 250, 250, 0.25);
-                border-radius: 999px;
-                padding: 0.35rem 0.75rem;
-                font-size: 0.9rem;
-                font-weight: 500;
-                background-color: rgba(250, 250, 250, 0.06);
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    items = load_documents()
-    data_hash = dataset_hash(items)
-    vector_db = build_vector_db(data_hash)
-
-    st.title("MasterControl Metadata Navigator")
-
-    st.markdown(
-        """
-        AI-assisted semantic discovery for controlled document InfoCards.
-
-        This demonstration assumes MasterControl remains the validated system of record. 
-        The navigator indexes only approved metadata fields and routes users back to the official MasterControl record.
-
-        **No controlled document content is stored or generated by this application. Only approved metadata is indexed to improve document discoverability.**
-        """
-    )
-
-    st.divider()
-
-    query = st.text_area(
-        "Search approved document metadata",
-        placeholder="Example: I installed a new PLC on a GMP manufacturing system. What document should I review?",
-        height=125,
-    )
-
-    c1, c2, c3 = st.columns([1, 1, 1])
-
-    with c2:
-        search_clicked = st.button("Search")
-
-    if search_clicked:
+    if submitted:
         if not query.strip():
-            st.error("Enter a search request before searching.")
-            return
-
-        candidate_results = vector_db.similarity_search_with_score(query, k=8)
-        ranked_results = rerank_results(query, candidate_results)
-        top_results = ranked_results[:3]
-
-        if not top_results:
-            st.error("No matching effective InfoCards were found.")
-            return
-
-        st.divider()
-
-        recommended_doc = top_results[0][0]
-        render_recommended_document(recommended_doc, query)
-
-        related_docs = get_related_documents(recommended_doc, items)
-        render_supporting_documents(related_docs)
-
-        render_other_relevant_documents(top_results)
+            st.error("Enter a question before searching.")
+        else:
+            filtered_events = apply_event_filters(events, filters)
+            event_results = search_events(query, filtered_events, event_vector_db, limit=10)
+            document_results = search_documents(query, vector_db)
+            st.divider()
+            if event_results:
+                render_event_summary(event_results)
+                for rank, (item, _) in enumerate(event_results):
+                    render_event(item, rank)
+            else:
+                st.warning("No potentially related historical records met the search terms and filters. This does not establish that no prior event exists.")
+            st.divider()
+            st.subheader("Applicable Effective Controlled Documents")
+            st.caption("These are metadata matches. Open and follow the effective controlled record in MasterControl.")
+            for rank, (doc, _) in enumerate(document_results):
+                render_document(doc, primary=rank == 0)
 
     st.divider()
+    st.markdown("""
+    **Demonstration and compliance notice**
 
-    st.markdown(
-        """
-        **Compliance Notice**
+    This prototype uses fictional metadata. It does not reproduce controlled attachments, determine recurrence,
+    assign root cause, assess product impact, or replace investigation and Quality-unit review. Production use
+    requires approved intended use, risk assessment, access controls, auditability, validation evidence, change
+    control, and verified read-only synchronization with MasterControl.
 
-        This application is a metadata routing layer only. It does not store, reproduce, summarize, or replace controlled SOP attachments.
-        Users must open and follow the official document in the validated Quality Management System before performing any regulated activity.
-
-        **Intended Production Architecture**
-
-        ```text
-                    MasterControl
-              Validated System of Record
-                         │
-                  Read-only Metadata
-                         │
-                         ▼
-           MasterControl Metadata Navigator
-                         │
-          Semantic Search and Metadata Ranking
-                         │
-                         ▼
-          Recommended Controlled Documents
-                         │
-                         ▼
-              Official MasterControl Record
-        ```
-        """
-    )
+    **Intended production flow:** MasterControl → permission-filtered read-only metadata → validated search index
+    → source-cited potential matches → authoritative MasterControl record.
+    """)
 
 
 if __name__ == "__main__":

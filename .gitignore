@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local virtual environment and Streamlit runtime artifacts
+.venv/
+.streamlit/secrets.toml
+streamlit-*.log
